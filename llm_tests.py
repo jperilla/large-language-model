@@ -1,5 +1,6 @@
 
 import file_utils
+from gpt_models import DummyGPTModel
 from tokenizer import SimpleTokenizer
 from vocabulary import Vocabulary
 
@@ -48,10 +49,10 @@ from datasets import GPTDataset, create_dataloader
 dataloader = create_dataloader(raw_text, batch_size=8, max_length=4, stride=4, shuffle=False)
 data_iter = iter(dataloader)
 first_batch = next(data_iter)
-print("First batch input IDs:", first_batch)
-print("\n")
+#print("First batch input IDs:", first_batch)
+#print("\n")
 second_batch = next(data_iter)
-print("Second batch input IDs:", second_batch)
+#print("Second batch input IDs:", second_batch)
 
 # Convert tokens to embeddings - small example
 import torch
@@ -70,12 +71,84 @@ max_length = 4
 dataloader = create_dataloader(raw_text, batch_size=8, max_length=max_length, stride=max_length, shuffle=False)
 data_iter = iter(dataloader)
 inputs, targets = next(data_iter)
-print("Input IDs shape:", inputs.shape)
+#print("Input IDs shape:", inputs.shape)
 token_embeddings = token_embedding_layer(inputs)
-print("Token embeddings shape:", token_embeddings.shape)
+#print("Token embeddings shape:", token_embeddings.shape)
 context_length = max_length
 pos_embedding_layer = torch.nn.Embedding(context_length, output_dim)
 pos_embeddings = pos_embedding_layer(torch.arange(context_length))
-print(pos_embeddings.shape)
+#print(pos_embeddings.shape)
 input_embeddings = token_embeddings + pos_embeddings
-print(input_embeddings.shape)
+#print(input_embeddings.shape)
+
+
+# Testing Self-Attention mechanism on small input
+inputs = torch.tensor([[0.43, 0.15, 0.89],
+                       [0.55, 0.87, 0.66],
+                       [0.57, 0.85, 0.64],
+                       [0.22, 0.58, 0.33],
+                       [0.77, 0.25, 0.10],
+                       [0.05, 0.80, 0.55]])
+
+d_in = inputs.shape[1]
+d_out = 2
+batch = torch.stack([inputs, inputs], dim=0)  # Create a batch of size 2
+context_length = batch.shape[1]
+
+#print(d_in, d_out)
+from attention import SelfAttentionV1
+torch.manual_seed(123)
+sa_v1 = SelfAttentionV1(d_in, d_out)
+#print(sa_v1(inputs))
+
+from attention import SelfAttentionV2
+torch.manual_seed(789)
+sa_v2 = SelfAttentionV2(d_in, d_out)
+#print(sa_v2(inputs))
+
+from attention import CausalAttention
+torch.manual_seed(123)
+ca = CausalAttention(d_in, d_out, context_length, 0.0)
+context_vec = ca(batch)
+#print("context_vec shape:", context_vec.shape)
+
+# Testing Dummy GPT Model
+GPT_CONFIG_124M = {
+    "vocab_size": 50257,
+    "context_length": 1024,
+    "emb_dim": 768,
+    "num_heads": 12,
+    "num_layers": 12,
+    "drop_rate": 0.1,
+    "qkv_bias": False
+}
+
+tokenizer = tiktoken.get_encoding("gpt2")
+batch = []
+txt1 = "Every effort moves you"
+txt2 = "Every day holds a"
+
+# encode texts and add to batch
+batch.append(torch.tensor(tokenizer.encode(txt1)))
+batch.append(torch.tensor(tokenizer.encode(txt2)))
+batch = torch.stack(batch, dim=0)  # Shape: (batch_size, seq_length)
+print(batch)
+
+dummy_gpt_model = DummyGPTModel(GPT_CONFIG_124M)
+
+torch.manual_seed(123)
+model = DummyGPTModel(GPT_CONFIG_124M)
+logits = model(batch)
+#print("Logits shape:", logits.shape)  # Expected shape: (batch_size, seq
+#print(logits)
+
+# Testing Full GPT Model
+from gpt_models import GPTModel
+
+torch.manual_seed(123)
+model = GPTModel(GPT_CONFIG_124M)
+
+out = model(batch)
+print("Input batch", batch)
+print("Output shape:", out.shape) 
+print(out) # Expected shape: (batch_size, seq
